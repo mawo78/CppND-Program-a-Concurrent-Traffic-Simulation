@@ -11,7 +11,7 @@ T MessageQueue<T>::receive()
     // FP.5a : The method receive should use std::unique_lock<std::mutex> and _condition.wait() 
     // to wait for and receive new messages and pull them from the queue using move semantics. 
     // The received object should then be returned by the receive function. 
-    std::unique_lock<std::mutex> lock(std::move(_mutex));
+    std::unique_lock<std::mutex> lock(_mutex);
     _condition.wait(lock, [this] {return !_queue.empty(); });
     T&& el = std::move(_queue.front());
     _queue.pop_front();
