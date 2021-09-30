@@ -24,6 +24,7 @@ void MessageQueue<T>::send(T &&msg)
     // FP.4a : The method send should use the mechanisms std::lock_guard<std::mutex> 
     // as well as _condition.notify_one() to add a new message to the queue and afterwards send a notification.
     std::lock_guard<std::mutex> lock(_mutex);
+    _queue.clear();
     _queue.emplace_back(std::move(msg));
     _condition.notify_one();
 }
@@ -36,6 +37,10 @@ TrafficLight::TrafficLight()
     _currentPhase = TrafficLightPhase::red;
 }
 
+TrafficLight::~TrafficLight()
+{
+}
+
 void TrafficLight::waitForGreen()
 {
     // FP.5b : add the implementation of the method waitForGreen, in which an infinite while-loop 
@@ -43,7 +48,6 @@ void TrafficLight::waitForGreen()
     // Once it receives TrafficLightPhase::green, the method returns.
 
     while (true) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));
         TrafficLightPhase phase = _messageQ.receive();
         if (TrafficLightPhase::green == phase) {
             return;
@@ -71,12 +75,12 @@ void TrafficLight::cycleThroughPhases()
     // Also, the while-loop should use std::this_thread::sleep_for to wait 1ms between two cycles. 
     auto lastUpdate = std::chrono::system_clock::now();
     // init random number generator
-    auto duration = lastUpdate.time_since_epoch();
-    auto millis = static_cast<unsigned int>(std::chrono::duration_cast<std::chrono::milliseconds>(duration).count());
-    srand(millis);
+    std::random_device rd;
+    std::mt19937 eng(rd());
+    std::uniform_int_distribution<> distr(MIN_CYCLE_DURATION, MIN_CYCLE_DURATION + DELTA_CYCLE_DURATION);
 
     // set first cycle duration
-    long cycleDuration = MIN_CYCLE_DURATION + rand() % DELTA_CYCLE_DURATION;
+    int cycleDuration = distr(eng);
 
     while (true)
     {
@@ -93,11 +97,10 @@ void TrafficLight::cycleThroughPhases()
                 _currentPhase = TrafficLightPhase::red;
             }
 
-            TrafficLightPhase msg = _currentPhase;
-            std::future<void> future = std::async(&MessageQueue<TrafficLightPhase>::send, &_messageQ, std::move(msg));
+            std::future<void> future = std::async(&MessageQueue<TrafficLightPhase>::send, &_messageQ, std::move(_currentPhase));
             future.wait();
 
-            cycleDuration = MIN_CYCLE_DURATION + rand() % DELTA_CYCLE_DURATION;
+            cycleDuration = distr(eng);
             lastUpdate = std::chrono::system_clock::now();
         }
 
